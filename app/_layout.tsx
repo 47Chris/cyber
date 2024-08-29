@@ -1,21 +1,19 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+import { useFonts } from "expo-font";
+import { Slot } from "expo-router";
+import { useEffect } from "react";
+import * as SplashScreen from "expo-splash-screen";
+import { AuthProvider } from "@/context/authContext";
+import { ToastProvider } from 'react-native-toast-notifications'
+import { SettingsProvider } from '@/context/SettingsContext';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    "TT Interphases Pro Bold": require("../assets/fonts/TT Interphases Pro Bold.otf"),
+    "TT Interphases Pro Light": require("../assets/fonts/TT Interphases Pro Light.otf"),
+    "TT Interphases Pro Medium": require("../assets/fonts/TT Interphases Pro Medium.otf"),
+    "TT Interphases Pro Regular": require("../assets/fonts/TT Interphases Pro Regular.otf"),
+    "TT Interphases Pro DemiBold": require("../assets/fonts/TT Interphases Pro DemiBold.otf"),
   });
-
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
@@ -27,11 +25,11 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-    </ThemeProvider>
+    <SettingsProvider>
+    <ToastProvider>
+    <AuthProvider>
+      <Slot />
+    </AuthProvider>
+    </ToastProvider></SettingsProvider>
   );
 }
