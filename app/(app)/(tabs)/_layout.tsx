@@ -1,12 +1,6 @@
 import { Tabs } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-// import { Colors } from '@/constants/Colors';
-// import { useColorScheme } from '@/hooks/useColorScheme';
-
-import * as Animatable from "react-native-animatable";
-
 import {
   FlatList,
   GestureHandlerRootView,
@@ -14,63 +8,26 @@ import {
   TouchableOpacity,
   Swipeable,
 } from "react-native-gesture-handler";
-import { Feather, Ionicons, MaterialCommunityIcons, Octicons } from '@expo/vector-icons';
+import { Entypo, Feather, Ionicons, MaterialCommunityIcons, Octicons } from '@expo/vector-icons';
 import { StyleSheet } from 'react-native';
-import TabBar from '@/components/TabBar';
-import { ThemeProvider } from '@emotion/react'
-import { NavigationContainer } from '@react-navigation/native'
-import { Provider } from 'react-redux'
-import { store, persistor } from "@/redux/store";
-import { connectToDevTools } from 'react-devtools-core'
-import { createNativeStackNavigator } from '@react-navigation/native-stack'
-import AppLoading from 'expo-app-loading'
-
-import { HomeScreen } from '@/src/screens/HomeScreen'
-import { StorageService, NotificationsService } from '@/src/services'
-import { theme } from '@/src/style/theme'
-// import { store } from '@/src/state/store'
-import { useAppState } from '@/src/hooks/useAppState'
 
 export default function TabLayout() {
 
-  const appState = useAppState({})
-  
-  const setupNotifications = async () => {
-    NotificationsService.initialize({
-      handleNotification: async () => ({
-        shouldSetBadge: false,
-        shouldPlaySound: appState !== 'active',
-        shouldShowAlert: appState !== 'active',
-      }),
-    })
-    if (true) {
-      const allowed = await NotificationsService.areNotificationAllowed()
-      if (!allowed) {
-        NotificationsService.requestPermisions()
-      }
-    }
-  }
-
-  useEffect(() => {
-    setupNotifications()
-  }, [])
 
   return (
-    <Provider store={store}>
-      <StorageService.RestoreState />
-      <ThemeProvider theme={theme}>
     <GestureHandlerRootView style={styles.container}>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#1c49ff',
         headerShown: false,
+        tabBarShowLabel: false,
       }}>
       <Tabs.Screen
-        name="index"
+        name="(home)"
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={'#1c49ff'} />
+            <MaterialCommunityIcons size={28} name={focused ? 'home-variant' : 'home-variant-outline'} color={color} />
           ),
         }}
       />
@@ -79,14 +36,21 @@ export default function TabLayout() {
         options={{
           title: 'Task',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'clipboard' : 'clipboard-outline'} color={color} />
+            <Entypo size={24} name={focused ? 'text-document-inverted' : 'text-document'} color={color}  />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="stats"
+        options={{
+          title: 'Stats',
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons size={28} name={focused ? 'chart-box' : 'chart-box-outline'} color={color} />
           ),
         }}
       />
     </Tabs>
     </GestureHandlerRootView>
-      </ThemeProvider>
-    </Provider>
   );
 }
 

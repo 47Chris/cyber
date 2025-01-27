@@ -4,13 +4,7 @@
 
 import React, { Component } from "react";
 import PropTypes from "prop-types";
-import {
-  View,
-  Animated,
-  PixelRatio,
-  TouchableOpacity,
-  Text,
-} from "react-native";
+import { View, Animated, PixelRatio } from "react-native";
 
 import moment from "moment";
 
@@ -131,8 +125,6 @@ class CalendarStrip extends Component {
   constructor(props) {
     super(props);
     this.numDaysScroll = 366; // prefer even number divisible by 3
-    // Add todayDate state
-    const todayDate = moment().startOf("day");
 
     if (props.locale) {
       if (props.locale.name && props.locale.config) {
@@ -150,7 +142,6 @@ class CalendarStrip extends Component {
     this.state = {
       startingDate,
       selectedDate,
-      todayDate, // Added todayDate to state
       datesList: [],
       dayComponentWidth: 0,
       height: 0,
@@ -611,7 +602,7 @@ class CalendarStrip extends Component {
             this.renderHeader()}
 
           <View style={styles.datesStrip}>
-            {/* <WeekSelector
+            <WeekSelector
               controlDate={this.props.minDate}
               iconComponent={this.props.leftSelector}
               iconContainerStyle={this.props.iconContainer}
@@ -622,21 +613,15 @@ class CalendarStrip extends Component {
               weekStartDate={this.state.weekStartDate}
               weekEndDate={this.state.weekEndDate}
               size={this.state.selectorSize}
-            /> */}
+            />
 
             <View onLayout={this.onLayout} style={styles.calendarDates}>
               {this.props.showDate
                 ? this.renderWeekView(this.state.days)
                 : this.renderHeader()}
             </View>
-            <TouchableOpacity
-              style={styles.todayButton}
-              onPress={this.scrollToToday}
-            >
-              <Text style={{ position: "absolute" }}>Today</Text>
-            </TouchableOpacity>
 
-            {/* <WeekSelector
+            <WeekSelector
               controlDate={this.props.maxDate}
               iconComponent={this.props.rightSelector}
               iconContainerStyle={this.props.iconContainer}
@@ -647,7 +632,7 @@ class CalendarStrip extends Component {
               weekStartDate={this.state.weekStartDate}
               weekEndDate={this.state.weekEndDate}
               size={this.state.selectorSize}
-            /> */}
+            />
           </View>
 
           {this.props.showDate &&

@@ -1,51 +1,69 @@
-/**
- * Sample React Native Calendar Strip
- * https://github.com/BugiDev/react-native-calendar-strip
- * @flow
- */
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import BottomSheet, {
+  BottomSheetView,
+  BottomSheetBackdrop,
+} from "@gorhom/bottom-sheet";
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { View, Text, Button, Image, Pressable, FlatList, ActivityIndicator } from 'react-native';
-import CalendarStrip from '@/components/CalendarStrip';
-import moment from 'moment';
-import BottomSheet, { BottomSheetBackdrop } from '@gorhom/bottom-sheet';
-import SliderComp from '@/components/SliderComp';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import Config from 'react-native-config';
-import { TouchableOpacity } from 'react-native-gesture-handler';
-import { AppTheme } from '@/utils/appConstant';
-import TextView from '@/components/TextView';
-import { addDoc, collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
-import { FIREBASE_DB } from '@/firebaseConfig';
-import { useToast } from 'react-native-toast-notifications';
-import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native';
-const TASK_COLLECTION_ID = Config.TASK_COLLECTION_ID;
-const CATEGORY_COLLECTION_ID = Config.CATEGORY_COLLECTION_ID;
-const DATABASE_ID = Config.DATABASE_ID;
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
+import {
+  View,
+  Text,
+  Button,
+  Image,
+  Pressable,
+  FlatList,
+  ActivityIndicator,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
+import SliderComp from "@/components/SliderComp";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import TextView from "@/components/TextView";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
+import { FIREBASE_DB } from "@/firebaseConfig";
+import { useToast } from "react-native-toast-notifications";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
+
+import { intervalToDuration } from "date-fns";
+import { RatingBar } from "@aashu-dubey/react-native-rating-bar";
+
+import useFormatToDigits from "../../../utils/hooks/useFormatToDigits"
 
 const validateSchema = yup.object().shape({
-  watching: yup.number().required('Watching is required').min(0),
-  writing: yup.number().required('Writing is required').min(0),
+  watching: yup.number().required("Watching is required").min(0),
+  writing: yup.number().required("Writing is required").min(0),
+  rating: yup.number().required("Writing is required").min(0).max(5),
 });
 const App = () => {
   const isFocused = useIsFocused();
+  const { formatToDigits } = useFormatToDigits(); // Use the hook
+
   
+
   const toast = useToast();
-  const [selectedDate, setSelectedDate] = useState(undefined);
-  const [formattedDate, setFormattedDate] = useState('');
-  const [customDatesStyles, setCustomDatesStyles] = useState([]);
-  const [markedDates, setMarkedDates] = useState([]);
-  const [startDate, setStartDate] = useState(moment());
   const [loading, setLoading] = useState(false);
   const [trigger, setTrigger] = useState(0);
-  const [categories, setCategories] = useState([]);
-  const [categoryChoose, setCategoryChoose] = useState(null);
   const [selectedDayLessonDocs, setSelectedDayLessonDocs] = useState(null);
-  const [showCompleted, setShowCompleted] = useState(false); 
-  const [completedToday, setCompletedToday] = useState([]);
+  const [showCompleted, setShowCompleted] = useState(false);
   const {
     reset,
     control,
@@ -57,164 +75,51 @@ const App = () => {
     defaultValues: {
       writing: 0,
       watching: 0,
+      rating: 0,
     },
     resolver: yupResolver(validateSchema),
   });
 
-  const [cancelButtonText, setCancelButtonText] = useState('Cancel');
-    const [isSaveButtonVisible, setIsSaveButtonVisible] = useState(true);
+  const [cancelButtonText, setCancelButtonText] = useState("Cancel");
+  const [isSaveButtonVisible, setIsSaveButtonVisible] = useState(true);
+  const [completedToday, setCompletedToday] = useState([]);
+
+  const [selectedSection, setSelectedSection] = useState(null);
+
+  const fetchDayLesson = async (videoId) => {
+    try {
+      const q = query(collection(FIREBASE_DB, "dayLesson"), where("id", "==", videoId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs[0] || null;
+    } catch (error) {
+      console.error("Error fetching dayLesson:", error);
+      toast.show("Error fetching data", { type: "error" });
+      return null;
+    }
+  };
   
 
-  // useEffect(() => {
-  //   let customDatesStyles = [];
-  //   let markedDates = [];
-  //   let startDate = moment(); // today
-
-  //   // Create a week's worth of custom date styles and marked dates.
-  //   for (let i=0; i<7; i++) {
-  //     let date = startDate.clone().add(i, 'days');
-
-  //     customDatesStyles.push({
-  //       startDate: date, // Single date since no endDate provided
-  //       dateNameStyle: {color: 'blue'},
-  //       dateNumberStyle: {color: 'purple'},
-  //       highlightDateNameStyle: {color: 'pink'},
-  //       highlightDateNumberStyle: {color: 'yellow'},
-  //       // Random color...
-  //       dateContainerStyle: { backgroundColor: `#${(`#00000${(Math.random() * (1 << 24) | 0).toString(16)}`).slice(-6)}` },
-  //     });
-
-  //     let dots = [];
-  //     let lines = [];
-
-  //     if (i % 2) {
-  //       lines.push({
-  //         color: 'cyan',
-  //         selectedColor: 'orange',
-  //       });
-  //     }
-  //     else {
-  //       dots.push({
-  //         color: 'red',
-  //         selectedColor: 'yellow',
-  //       });
-  //     }
-  //     markedDates.push({
-  //       date,
-  //       dots,
-  //       lines
-  //     });
-  //   }
-
-  //   setCustomDatesStyles(customDatesStyles);
-  //   setMarkedDates(markedDates);
-  //   setStartDate(startDate);
-  // }, []);
-
-  const datesBlacklistFunc = date => {
-    return date.isoWeekday() === 6; // disable Saturdays
-  }
-
-  const onDateSelected = selectedDate => {
-    setSelectedDate(selectedDate);
-    setFormattedDate(selectedDate.format('YYYY-MM-DD'));
-  }
-
-  const setSelectedDateNextWeek = date => {
-    const selectedDate = moment(selectedDate).add(1, 'week');
-    const formattedDate = selectedDate.format('YYYY-MM-DD');
-    setSelectedDate(selectedDate);
-    setFormattedDate(formattedDate);
-  }
-
-  const setSelectedDatePrevWeek = date => {
-    const selectedDate = moment(selectedDate).subtract(1, 'week');
-    const formattedDate = selectedDate.format('YYYY-MM-DD');
-    setSelectedDate(selectedDate);
-    setFormattedDate(formattedDate);
-  }
-
-  const snapPoints = useMemo(() => ['25%', '50%', ], [])
-
-  const bottomSheetRef = useRef(null);
-
-  const [selectedSection, setSelectedSection] = useState(null)
-
-  const handleClosePress = () => {
-    bottomSheetRef.current?.close();
-    setSelectedSection(null);
-    setValue('writing', 0);
-    setValue('watching', 0);
-    setIsSaveButtonVisible(false);
-        setCancelButtonText('Close');
-  };
-  const handleOpenPress = (item: object) => {
+  const handleOpenPress = useCallback(async (item) => {
     setSelectedSection(item);
     bottomSheetRef.current?.expand();
-    (async () => {
-      const selectedDayLesson = await getDocs(collection(FIREBASE_DB, "dayLesson"));
-      const selectedDayLessonDoc = selectedDayLesson.docs.find(doc => doc.data().id === item.id);
-      if (selectedDayLessonDoc) {
-        const { writing, watching } = selectedDayLessonDoc.data();
-        reset({ writing, watching });
-      } else {
-        reset({ writing: 0, watching: 0 });
-      }
-    })();
-    
-  };
-
-  const renderBackdrop = useCallback(
-    props => (
-      <BottomSheetBackdrop appearsOnIndex={0} disappearsOnIndex={-1} {...props}  onPress={() => {setIsSaveButtonVisible(false);
-        setCancelButtonText('Close');}}/>
-    ),
-    []
-  );
+    const dayLessonDoc = await fetchDayLesson(item.id);
+    const latestProgress = dayLessonDoc?.data()?.progress?.sort((a, b) => b.date.seconds - a.date.seconds)[0];
   
+    reset({
+      watching: latestProgress?.watching || 0,
+      writing: latestProgress?.writing || 0,
+      rating: latestProgress?.rating || 0,
+    });
+  }, []);
   
 
-  async function submitData() {
-    const data = {
-      totalVideos: 15,
-      totalDuration: "5hr 42min",
-      videos: [
-        { id: "01", title: "Terminology", duration: "33:41" },
-        { id: "02A", title: "Chart Basics and Price Action", topics: ["Charts: Purpose and types", "Markets: How they work"], duration: "29:17" },
-        { id: "02B", title: "Chart Basics and Price Action", topics: ["Volume", "News"], duration: "32:28" },
-        { id: "02C", title: "Chart Basics and Price Action", topics: ["What is price action", "What is the pain trade"], duration: "24:26" },
-        { id: "02D", title: "Chart Basics and Price Action", topics: ["Candlestick Patterns", "What traders talk about", "Indicators"], duration: "28:30" },
-        { id: "03A", title: "Forex Basics", topics: ["What is the Forex Market", "Forex Sessions", "Leverage, Fundamentals"], duration: "17:37" },
-        { id: "03B", title: "Forex Basics", topics: ["Risks, costs, brokers", "Symbols", "Types of quotes"], duration: "15:24" },
-        { id: "03C", title: "Forex Basics", topics: ["Value of a pip", "Forex Workspaces", "Futures or forex?"], duration: "14:04" },
-        { id: "03D", title: "Forex Basics", topics: ["Charts only approximate", "Best time frames", "Scalps and Swing Trades"], duration: "16:47" },
-        { id: "03E", title: "Forex Basics", topics: ["Margins", "Profit and Loss"], duration: "10:50" },
-        { id: "04", title: "My Setup", duration: "6:57" },
-        { id: "05", title: "Program Trading", topics: ["What is program trading", "High-frequency trading", "Spoofing", "Front Running & HFT"], duration: "32:10" },
-        { id: "06", title: "Personality Traits of Successful Traders", topics: ["Traits of Great Traders", "Doing stupid things", "Comfortable with uncertainty"], duration: "26:30" },
-        { id: "07A", title: "Starting Out", topics: ["False Beliefs", "What is the big picture? BLSHS!", "Chart types, time frames"], duration: "34:44" },
-        { id: "07B", title: "Starting Out", topics: ["Starting out and advancing", "Emotions", "Fear and greed", "Uncertainty"], duration: "18:46" }
-      ]
-    };
-  
-    // Reference to your Firestore collection and document
-    await setDoc(doc(FIREBASE_DB, "priceActionFundementals", "Support_Resistance_and_Basic_Patterns_19_29"), data);
-    console.log("Data submitted successfully!");
-  }
-  
-  // submitData().catch(console.error);
-  
-  
+  const [tests, setTests] = useState([]);
 
-
-
-  const [tests, setTests] = useState([])
-  
-
-  
   useEffect(() => {
     const fetchTest = async () => {
-      const querySnapshot = await getDocs(collection(FIREBASE_DB, "priceActionFundementals"));
+      const querySnapshot = await getDocs(
+        collection(FIREBASE_DB, "priceActionFundamentals")
+      );
       const fetchedTests = [];
       querySnapshot.forEach((doc) => {
         fetchedTests.push({ id: doc.id, ...doc.data() });
@@ -230,69 +135,96 @@ const App = () => {
   const submit = async () => {
     if (loading) return;
     setLoading(true);
-    
-    const currentDate = new Date(); // Get the current date
+  
     const values = { ...getValues() };
-    console.log(values);
-    
-    const allvideos = tests.reduce((accumulator, currentValue) => {
+    const allVideos = tests.reduce((accumulator, currentValue) => {
       return accumulator.concat(currentValue.videos);
     }, []);
-    
-    const selectedVideo = allvideos.find((video) => video.id === selectedSection.id) || null;  
-    console.log("selectedVideo", selectedVideo);
-    
-    const selectedDayLesson = await getDocs(collection(FIREBASE_DB, "dayLesson"));
-    const selectedDayLessonDoc = selectedDayLesson.docs.find(doc => {
-      console.log("dayLesson doc id: ", doc.id);
-      return doc.data().id === selectedVideo?.id;
-    });
-    console.log(selectedDayLessonDoc?.id);
-    
+  
+    const selectedVideo =
+      allVideos.find((video) => video.id === selectedSection.id) || null;
+  
+    if (!selectedVideo) {
+      toast.show("No video selected", { type: "error" });
+      setLoading(false);
+      return;
+    }
+  
     try {
-      if (selectedDayLessonDoc?.id !== undefined) {
-        await updateDoc(doc(FIREBASE_DB, "dayLesson", selectedDayLessonDoc.id), {
-          watching: values.watching,
-          writing: values.writing,
-          dateSubmitted: currentDate, // Add the current date
+      const dayLessonRef = doc(FIREBASE_DB, "dayLesson", selectedSection.id);
+  
+      // Fetch the existing document
+      const dayLessonDoc = await getDoc(dayLessonRef);
+  
+      if (dayLessonDoc.exists()) {
+        // Fetch existing progress history
+        const existingProgress = dayLessonDoc.data().progress || [];
+  
+        // Append the new progress entry for the current day
+        const updatedProgress = [
+          ...existingProgress,
+          {
+            date: new Date(),
+            watching: values.watching,
+            writing: values.writing,
+            rating: values.rating,
+          },
+        ];
+  
+        // Update the document
+        await updateDoc(dayLessonRef, {
+          progress: updatedProgress,
         });
       } else {
-        await addDoc(collection(FIREBASE_DB, "dayLesson"), {
+        // Create a new document with the specified ID
+        await setDoc(dayLessonRef, {
           id: selectedSection.id,
-          watching: values.watching,
-          writing: values.writing,
-          dateSubmitted: currentDate, // Add the current date
+          progress: [
+            {
+              date: new Date(),
+              watching: values.watching,
+              writing: values.writing,
+              rating: values.rating,
+            },
+          ],
         });
       }
-      
-      toast.show('Saved', {
-        type: 'success',
-        duration: 4000, 
-        animationType: 'zoom-in', 
-        placement: 'top', 
-        textStyle: { color: '#ffffff', fontSize: 8, textAlign: 'center' },
-        style: { 
-          backgroundColor: '#28a745', 
+  
+      toast.show("Saved", {
+        type: "success",
+        duration: 4000,
+        animationType: "zoom-in",
+        placement: "top",
+        textStyle: { color: "#ffffff", fontSize: 8, textAlign: "center" },
+        render: () => (
+          <View style={styles.toastContainer}>
+            <MaterialIcons name="check-circle" size={24} color="black" />
+            <Text style={styles.toastText}>Saved</Text>
+          </View>
+        ),
+        style: {
+          backgroundColor: "#28a745",
           padding: 0,
-          borderRadius: 20, 
-          width: '100%', 
+          borderRadius: 20,
+          width: "100%",
           height: 34,
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          marginTop: 20
-        }, 
+          justifyContent: "center",
+          alignItems: "center",
+          marginTop: 20,
+        },
       });
     } catch (error) {
-      toast.show('Connection error', { type: 'error' });
+      toast.show("Connection error", { type: "error" });
       console.error("Error adding lesson: ", error);
     } finally {
       setLoading(false);
-      setCancelButtonText('Close');
+      setCancelButtonText("Close");
       setIsSaveButtonVisible(false);
+      fetchDayLessons(); // Call fetchDayLessons here
     }
   };
   
-  
+
   const ItemSeparatorView = () => {
     return (
       <View
@@ -305,316 +237,553 @@ const App = () => {
       />
     );
   };
-  
-  const values = { ...getValues() }
-  useEffect(() => {
-    const fetchDayLessons = async () => {
-      const selectedDayLesson = await getDocs(collection(FIREBASE_DB, "dayLesson"));
+
+  const values = { ...getValues() };
+  const fetchDayLessons = async () => {
+      const selectedDayLesson = await getDocs(
+        collection(FIREBASE_DB, "dayLesson")
+      );
       setSelectedDayLessonDocs(selectedDayLesson.docs);
     };
+  useEffect(() => {
+    
     fetchDayLessons();
-  }, [values.watching, values.writing]);
+  }, [isFocused, values.watching, values.writing, values.rating]);
 
-
+  const calculateProgress = (item) => {
+    const doc = selectedDayLessonDocs?.find((d) => d.data()?.id === item.id);
+    if (!doc) return { watching: 0, writing: 0, rating: 0 };
+  
+    const latestProgress = doc.data()?.progress?.sort((a, b) => b.date.seconds - a.date.seconds)[0];
+    return {
+      watching: latestProgress?.watching || 0,
+      writing: latestProgress?.writing || 0,
+      rating: latestProgress?.rating || 0
+    };
+  };
+  
   function renderItem({ item }) {
-    // Safely find the matched document
-  const matchedDoc = selectedDayLessonDocs?.find(doc => doc.data()?.id === item.id);
-
-  // Safely log the data, only if matchedDoc is found
-  if (matchedDoc) {
-    console.log(matchedDoc.data()?.writing, matchedDoc.data()?.watching);
-  }
-
-    
-    
+    const { watching, writing } = calculateProgress(item);
+    const textDecoration = watching === 100 && writing === 100 ? "line-through" : "none";
+  
     return (
-      
-      <TouchableOpacity onPress={()=> handleOpenPress(item)} style={{  backgroundColor: "white", padding: 12, flexDirection: "row", gap: 12, alignItems: "center", justifyContent: "space-between", borderRadius: 16, }} >
-      <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-      <View style={{ width: 16, height: 16, borderColor: "grey", borderWidth:1, borderRadius: 16 }}></View>
-
-        <View style={{ gap:4 }}>
-          <Text style={{ color: "#333333", fontWeight: 700, textDecorationLine: matchedDoc?.data()?.writing === 100 && matchedDoc?.data()?.watching === 100 ? "line-through" : "none", }}>{item.id} {item.title}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <TouchableOpacity onPress={() => handleOpenPress(item)} style={styles.itemContainer}>
+        <View style={styles.itemContent}>
+          <View style={styles.circle} />
+          <View>
+            <Text style={{ ...styles.itemTitle, textDecorationLine: textDecoration }}>
+              {item.id} {item.title}
+            </Text>
+            <View style={styles.progressContainer}>
               <Ionicons name="eye" size={12} color="grey" />
-              <Text style={{ color: "grey", fontSize: 12, marginLeft: 2 }}>{matchedDoc?.data()?.watching || 0}</Text>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginLeft: 8 }}>
-            <Ionicons name="create-sharp" size={12} color="grey" />
-              <Text style={{ color: "grey", fontSize: 12, marginLeft: 2 }}>{matchedDoc?.data()?.writing || 0}</Text>
+              <Text style={styles.progressText}>{watching}</Text>
+              <Ionicons name="create-sharp" size={12} color="grey" style={{ marginLeft: 8 }} />
+              <Text style={styles.progressText}>{writing}</Text>
             </View>
           </View>
         </View>
-      </View>
-      <View style={{  }}><Text style={{ color: "grey", fontSize: 12, marginLeft: 2 }}>{item.duration}</Text></View>
-    </TouchableOpacity>
-    
+        <Text style={styles.durationText}>{item.duration}</Text>
+      </TouchableOpacity>
     );
   }
+  
 
   const allvideos = tests.reduce((accumulator, currentValue) => {
     return accumulator.concat(currentValue.videos);
   }, []);
 
   // console.log(
-  //   allvideos.filter(video => 
+  //   allvideos.filter(video =>
   //     selectedDayLessonDocs.some(doc => doc.data().id === video.id)
   //   )
   // );
-  
- // Extract unique group IDs
-const groupIds = Array.from(new Set(allvideos.map(video => video.id.split(/(?<=\d)\D/)[0])));
 
-// Check if all videos in a group are complete
-const isGroupComplete = (groupId) => {
-  const groupVideos = allvideos.filter(video => video.id.startsWith(groupId));
-  return groupVideos.every(video => {
-    const dayLessonDoc = selectedDayLessonDocs?.find(doc => doc.data()?.id === video.id);
-    return dayLessonDoc && dayLessonDoc.data()?.watching === 100 && dayLessonDoc.data()?.writing === 100;
-  });
-};
+  // Extract unique group IDs
+  const groupIds = Array.from(
+    new Set(allvideos.map((video) => video.id.split(/(?<=\d)\D/)[0]))
+  );
 
-// Get the current group ID to display
-const getCurrentGroupId = () => {
-  for (let groupId of groupIds) {
-    if (!isGroupComplete(groupId)) {
-      return groupId;
-    }
-  }
-  return null; // or handle cases where all groups are complete
-};
+  const isGroupComplete = (groupId) => {
+    const groupVideos = allvideos.filter((video) =>
+      video.id.startsWith(groupId)
+    );
 
-// Filter videos to display
-const currentGroupId = getCurrentGroupId();
-const filteredVideos = allvideos.filter(video => video.id.startsWith(currentGroupId));
+    return groupVideos.every((video) => {
+      const dayLessonDoc = selectedDayLessonDocs?.find(
+        (doc) => doc.data()?.id === video.id
+      );
 
+      if (dayLessonDoc) {
+        const progressRecords = dayLessonDoc.data()?.progress || [];
 
-// Function to check if a date is today
-function isToday(date) {
-  const today = new Date();
-  const givenDate = new Date(date.seconds * 1000); // Convert Firestore Timestamp to Date
-  return today.toDateString() === givenDate.toDateString();
-}
-useEffect(() => {
-  if (!allvideos.length) return;
+        if (progressRecords.length > 0) {
+          // Sort progress records by date in descending order to get the latest one
+          const latestProgress = progressRecords.sort(
+            (a, b) => b.date.toMillis() - a.date.toMillis()
+          )[0];
 
-  const fetchCompletedToday = async () => {
-    try {
-      // Fetch all documents from the 'dayLesson' collection
-      const q = query(collection(FIREBASE_DB, 'dayLesson'));
-      const querySnapshot = await getDocs(q);
+          // Check if the latest progress record meets the criteria
+          return (
+            latestProgress.watching === 100 && latestProgress.writing === 100
+          );
+        }
+      }
 
-      console.log('Total documents fetched:', querySnapshot.size); // Shows the number of documents fetched
-
-      // Extract document data and filter documents that were completed today
-      const filteredLessons = querySnapshot.docs
-        .map(doc => doc.data()) // Extract document data
-        .filter(data => {
-          console.log('Document data:', data); // Log each document's data
-
-          // Ensure dateSubmitted exists and is a valid Firestore Timestamp
-          if (data.dateSubmitted && data.dateSubmitted.seconds) {
-            // Find a matching video by id
-            const matchedVideo = allvideos.find(video => video.id === data.id);
-            console.log(matchedVideo);
-            
-            // Return true if video is matched and lesson is completed today
-            return matchedVideo && data.watching === 100 && data.writing === 100 && isToday(data.dateSubmitted);
-          }
-          return false; // Skip documents without a valid dateSubmitted
-        })
-        .map(data => {
-          // Find the matched video for each filtered lesson
-          const matchedVideo = allvideos.find(video => video.id === data.id);
-          return {
-            ...data,
-            title: matchedVideo ? matchedVideo.title : 'Unknown Title'
-          };
-        });
-
-      console.log('Filtered completed today:', filteredLessons); // Shows the filtered documents with titles
-      setCompletedToday(filteredLessons); // Save to state
-    } catch (error) {
-      console.error('Error fetching completed lessons:', error);
-    }
+      // Return false if no matching document is found or no progress records exist
+      return false;
+    });
   };
 
-  fetchCompletedToday();
-}, [isFocused]); // Add allvideos to dependency array if it's a state or prop
+  // console.log(isGroupComplete("02"));
 
+  // Get the current group ID to display
+  const getCurrentGroupId = () => {
+    for (let groupId of groupIds) {
+      if (!isGroupComplete(groupId)) {
+        return groupId;
+      }
+    }
+    return null; // or handle cases where all groups are complete
+  };
 
+  // Filter videos to display
+  const currentGroupId = getCurrentGroupId();
+  const filteredVideos = allvideos.filter((video) =>
+    video.id.startsWith(currentGroupId)
+  );
+
+  const totalDuration = filteredVideos.reduce((acc, video) => {
+    const [minutes, seconds] = video.duration.split(":").map(Number);
+    return acc + minutes * 60 + seconds;
+  }, 0);
+
+  const filteredData = filteredVideos.map((video) => {
+    const doc = selectedDayLessonDocs?.find(
+      (doc) => doc.data().id === video.id
+    );
+    return doc ? { ...video, ...doc.data() } : video;
+  });
+
+  /// Function to convert "mm:ss" duration to seconds
+  function convertDurationToSeconds(duration) {
+    if (!duration) return 0; // Handle null or undefined duration
+    const [minutes, seconds] = duration.split(":").map(Number);
+    return (isNaN(minutes) ? 0 : minutes) * 60 + (isNaN(seconds) ? 0 : seconds);
+  }
+
+  // Initialize variables to store results
+  let writingDurations = {};
+  let totalWritingDuration = 0;
+
+  filteredData.forEach((entry) => {
+    // Ensure progress is an array and has at least one element
+    if (!entry.progress || entry.progress.length === 0) return;
+
+    // Get the latest progress entry (last one in the array)
+    const latestProgress = entry.progress[entry.progress.length - 1];
+
+    // Handle cases where progress values might be null or undefined
+    const writingPercentage = latestProgress?.writing ?? 0;
+
+    // Convert duration to seconds
+    const totalDurationInSeconds = convertDurationToSeconds(entry.duration);
+
+    // Calculate writing duration
+    const writingDurationInSeconds =
+      (writingPercentage / 100) * totalDurationInSeconds;
+
+    // Store the result
+    writingDurations[entry.id] = writingDurationInSeconds;
+    totalWritingDuration += writingDurationInSeconds;
+  });
+
+  // Function to check if a date is today
+  function isToday(date) {
+    const today = new Date();
+    const givenDate = new Date(date.seconds * 1000); // Convert Firestore Timestamp to Date
+    return today.toDateString() === givenDate.toDateString();
+  }
+
+  useEffect(() => {
+    if (!allvideos.length) return;
+
+    const fetchCompletedToday = async () => {
+      try {
+        // Fetch all documents from the 'dayLesson' collection
+        const q = query(collection(FIREBASE_DB, "dayLesson"));
+        const querySnapshot = await getDocs(q);
+
+        // Extract document data and filter documents that were completed today
+        const filteredLessons = querySnapshot.docs
+          .map((doc) => doc.data()) // Extract document data
+          .filter((data) => {
+            // Ensure progress exists and is an array
+            if (data.progress && Array.isArray(data.progress)) {
+              // Sort progress records by date in descending order to get the latest one
+              const latestProgress = data.progress.sort(
+                (a, b) => b.date.toMillis() - a.date.toMillis()
+              )[0];
+
+              // Check if the latest progress record is from today and meets the criteria
+              const isCompletedToday =
+                isToday(latestProgress.date) &&
+                latestProgress.watching === 100 &&
+                latestProgress.writing === 100;
+
+              // Find a matching video by id
+              const matchedVideo = allvideos.find(
+                (video) => video.id === data.id
+              );
+
+              // Return true if video is matched and lesson is completed today
+              return matchedVideo && isCompletedToday;
+            }
+            return false; // Skip documents without valid progress
+          })
+          .map((data) => {
+            // Find the matched video for each filtered lesson
+            const matchedVideo = allvideos.find(
+              (video) => video.id === data.id
+            );
+            return {
+              ...data,
+              title: matchedVideo ? matchedVideo.title : "Unknown Title",
+            };
+          });
+        // Shows the filtered documents with titles
+        setCompletedToday(filteredLessons); // Save to state
+      } catch (error) {
+        console.error("Error fetching completed lessons:", error);
+      }
+    };
+
+    fetchCompletedToday();
+  }, [isFocused]); // Add allvideos to dependency array if it's a state or prop
+
+  // ref
+  const bottomSheetRef = useRef<BottomSheet>(null);
+
+  // callbacks
+  const handleSheetChanges = useCallback((index: number) => {
+    console.log("handleSheetChanges", index);
+  }, []);
+
+  
+
+  // renders
   return (
-    <View style={{
-      flex: 1,
-      
-      // paddingHorizontal: 20,
-      backgroundColor: "#f3f3f3",
-    }}>
-      <CalendarStrip
-        scrollable
-        calendarAnimation={{type: 'sequence', duration: 30}}
-        daySelectionAnimation={{type: 'background', duration: 300, highlightColor: '#9265DC'}}
-        style={{height:150, paddingTop: 64, paddingBottom: 10, paddingHorizontal: 12}}
-        calendarHeaderStyle={{color: 'white'}}
-        calendarColor={'#3b76c3'}
-        dateNumberStyle={{color: 'white'}}
-        dateNameStyle={{color: 'white'}}
-        iconContainer={{flex: 0.1}}
-        customDatesStyles={customDatesStyles}
-        highlightDateNameStyle={{color: '#3b76c3'}}
-        highlightDateNumberStyle={{color: '#3b76c3'}}
-        highlightDateContainerStyle={{backgroundColor: 'white', borderRadius: 40}}
-        markedDates={markedDates}
-        // datesBlacklist={datesBlacklistFunc}
-        selectedDate={selectedDate}
-        onDateSelected={onDateSelected}
-        useIsoWeekday={false}
-
-      />
-     <View style={{ flexDirection: 'row', marginVertical:20, gap:12, paddingHorizontal: 12 }}>
-        <View style={{  paddingVertical: 8, paddingHorizontal: 24, backgroundColor: "#3b76c3", borderRadius: 16 }}>
-              <Text style={{ }}>All</Text>
-            </View>
-        <View style={{ }}>
-              <Text style={{ paddingVertical: 8, paddingHorizontal: 24, borderWidth: 1, borderColor: "#3b76c3", borderRadius: 16  }}>Work</Text>
-            </View>
-     </View>
-
-      {/* <Text style={{fontSize: 24}}>Selected Date: {formattedDate}</Text> */}
+    <GestureHandlerRootView style={styles.container}>
+      <View
+        style={{
+          paddingHorizontal: 12,
+          paddingVertical: 12,
+          flexDirection: "row",
+          gap: 24,
+        }}
+      >
+        <View>
+          <Text
+            style={{
+              color: "#3b76c3",
+              textAlign: "center",
+              fontSize: 60,
+              fontFamily: "Sorren Ex SemiBold",
+            }}
+          >
+            {formatToDigits(totalWritingDuration)}
+          </Text>
+          <Text style={{ color: "grey", textAlign: "center", fontSize: 12 }}>
+            Elapsed Time
+          </Text>
+        </View>
+        <View>
+          <Text
+            style={{
+              color: "#3b76c3",
+              textAlign: "center",
+              fontSize: 60,
+              fontFamily: "Sorren Ex SemiBold",
+            }}
+          >
+            {formatToDigits(totalDuration)}
+          </Text>
+          <Text style={{ color: "grey", textAlign: "center", fontSize: 12 }}>
+            Estimated Time
+          </Text>
+        </View>
+      </View>
       <View style={{ paddingHorizontal: 12 }}>
-            
-      </View>
-
-      <View style={{ paddingHorizontal:12 }}>
         <FlatList
-                data={filteredVideos}
-
-            keyExtractor={(item, index) => index.toString()}
-            ItemSeparatorComponent={ItemSeparatorView}
-            // ref={flatListRef}
-            // simultaneousHandlers={panRef}
-            renderItem={renderItem}
-          />
+          data={filteredVideos}
+          keyExtractor={(item, index) => index.toString()}
+          ItemSeparatorComponent={ItemSeparatorView}
+          // ref={flatListRef}
+          // simultaneousHandlers={panRef}
+          renderItem={renderItem}
+        />
       </View>
-      <View style={{ flexDirection: 'row', marginVertical:20, paddingHorizontal: 12 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          marginVertical: 20,
+          paddingHorizontal: 12,
+        }}
+      >
         <TouchableOpacity onPress={() => setShowCompleted(!showCompleted)}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ color: showCompleted ? '#3b76c3' : 'black' }}>Hide completed tasks</Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={{ color: showCompleted ? "#3b76c3" : "black" }}>
+              {showCompleted ? "Hide completed today" : "Show completed today"}
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
-      {showCompleted && <View style={{ paddingHorizontal:12 }}>
-        <FlatList
-                data={completedToday}
 
+      {showCompleted && (
+        <View style={{ paddingHorizontal: 12 }}>
+          <FlatList
+            data={completedToday}
             keyExtractor={(item, index) => index.toString()}
             ItemSeparatorComponent={ItemSeparatorView}
             // ref={flatListRef}
             // simultaneousHandlers={panRef}
             renderItem={renderItem}
           />
-      </View>}
+        </View>
+      )}
 
       <BottomSheet
+        ref={bottomSheetRef}
+        onChange={handleSheetChanges}
+        index={-1} // Start with the bottom sheet closed
+        snapPoints={useMemo(() => ["25%", "60%"], [])} // Define snap points
         enablePanDownToClose={true}
         enableContentPanningGesture={false}
-        snapPoints={snapPoints}
-        index={0}
-        ref={bottomSheetRef}
-        backdropComponent={renderBackdrop}
-        style={{ elevation:5 }}
+        style={{ elevation: 5 }}
+        backdropComponent={(props) => (
+          <BottomSheetBackdrop
+            {...props}
+            disappearsOnIndex={-1}
+            opacity={0.5} // Customize the opacity of the backdrop
+          />
+        )}
       >
-        <View style={{ padding: 20 }}>
-           {/* <Button
+        <BottomSheetView style={styles.contentContainer}>
+          <View style={{ flex: 1, padding: 16 }}>
+            {/* <Button
               title="Close" onPress={handleClosePress}
             /> */}
-          <Text style={{color: "#333333", fontWeight: 700, marginBottom: 4}}>{selectedSection?.id} {selectedSection?.title}</Text>
-          {selectedSection?.topics?.map((topic, index) => (
-            <Text key={index}>{topic}</Text>
-          ))}
-          <View
-          style={{
-            marginTop: 20,
-            height: 40,
-          }}
-        >
-          <SliderComp
-            title="Watching"
-            minimumValue={0}
-            maximumValue={100}
-            fieldName="watching"
-            value={getValues('watching')}
-            control={control}
-            onChange={value => {
-              setValue('watching', value);
-              setTrigger(prev => prev + 1);
-              setIsSaveButtonVisible(true);
-        setCancelButtonText('Cancel');
-            }}
-            errorMessage={errors?.sessions?.message}
-          />
-        </View>
-          
-        <View
-          style={{
-            marginTop: 20,
-            marginBottom: 20,
-            height: 40,
-          }}
-        >
-          <SliderComp
-            title="Writing"
-            minimumValue={0}
-            maximumValue={100}
-            // step={5}
-            fieldName="writing"
-            value={getValues('writing')}
-            control={control}
-            onChange={value => {
-              setValue('writing', value);
-              setTrigger(prev => prev + 1);
-              setIsSaveButtonVisible(true);
-        setCancelButtonText('Cancel');
-            }}
-            errorMessage={errors?.writing?.message}
-          />
-        </View>
-         
-          <View style={{ }}>
-            <View style={{ flexDirection: 'column', justifyContent: 'space-between', marginTop: 16 }}>
-             
-              {isSaveButtonVisible && <Pressable
+            <Text
+              style={{ color: "#333333", fontWeight: 700, marginBottom: 4 }}
+            >
+              {selectedSection?.id} {selectedSection?.title}
+            </Text>
+            {selectedSection?.topics?.map((topic, index) => (
+              <Text key={index}>{topic}</Text>
+            ))}
+            <View
+              style={{
+                marginTop: 20,
+                height: 40,
+              }}
+            >
+              <SliderComp
+                title="Watching"
+                minimumValue={0}
+                maximumValue={100}
+                fieldName="watching"
+                value={getValues("watching")}
+                control={control}
+                onChange={(value) => {
+                  setValue("watching", value);
+                  setTrigger((prev) => prev + 1);
+                  setIsSaveButtonVisible(true);
+                  setCancelButtonText("Cancel");
+                }}
+                errorMessage={errors?.sessions?.message}
+              />
+            </View>
+
+            <View
+              style={{
+                marginTop: 20,
+                marginBottom: 20,
+                height: 40,
+              }}
+            >
+              <SliderComp
+                title="Writing"
+                minimumValue={0}
+                maximumValue={100}
+                // step={5}
+                fieldName="writing"
+                value={getValues("writing")}
+                control={control}
+                onChange={(value) => {
+                  setValue("writing", value);
+                  setTrigger((prev) => prev + 1);
+                  setIsSaveButtonVisible(true);
+                  setCancelButtonText("Cancel");
+                }}
+                errorMessage={errors?.writing?.message}
+              />
+            </View>
+
+            <View
+  style={{
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  }}
+>
+  <RatingBar
+    initialRating={getValues("rating") || 0} // Use form state or default to 3
+    itemCount={5} // The number of rating items (stars or icons)
+    itemPadding={4} // Padding between each item
+    itemBuilder={(index) => {
+      switch (index) {
+        case 0:
+          return (
+            <MaterialIcons
+              name="sentiment-very-dissatisfied"
+              color="#F44336"
+              size={30}
+            />
+          );
+        case 1:
+          return (
+            <MaterialIcons
+              name="sentiment-dissatisfied"
+              color="#ff7c0b"
+              size={30}
+            />
+          );
+        case 2:
+          return (
+            <MaterialIcons
+              name="sentiment-neutral"
+              color="#FFC107"
+              size={30}
+            />
+          );
+        case 3:
+          return (
+            <MaterialIcons
+              name="sentiment-satisfied"
+              color="#8BC34A"
+              size={30}
+            />
+          );
+        case 4:
+          return (
+            <MaterialIcons
+              name="sentiment-very-satisfied"
+              color="#4CAF50"
+              size={30}
+            />
+          );
+        default:
+          return <View />;
+      }
+    }}
+    onRatingUpdate={(value) => {
+      setValue("rating", value); // Store the rating in form state
+      setTrigger((prev) => prev + 1); // Trigger a re-render (or revalidation)
+    }}
+  />
+</View>
+
+
+            <View style={{ marginTop: 16 }}>
+      <Pressable
+        style={{
+          backgroundColor: "#3b76c3",
+          padding: 8,
+          borderRadius: 24,
+          paddingVertical: 12,
+        }}
+        onPress={() => {
+          // Set both sliders to 100
+          setValue("watching", 100);
+          setValue("writing", 100);
+          setTrigger((prev) => prev + 1); // Trigger a re-render if needed
+          setIsSaveButtonVisible(true);
+          setCancelButtonText("Cancel");
+        }}
+      >
+        <TextView style={{ color: "white", textAlign: "center" }}>
+          Set to 100
+        </TextView>
+      </Pressable>
+    </View>
+
+            <View style={{}}>
+              <View
                 style={{
-                  backgroundColor:"#3b76c3",
-                  padding: 8,
-                  borderRadius: 24,
-                  paddingVertical: 12,
- 
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  marginTop: 16,
                 }}
-                onPress={() => {
-                  submit();
-                }}
-                disabled={loading}
               >
-                {loading ? (<ActivityIndicator size={24} color={"white"} />) : (<TextView style={{ color: "white", textAlign: "center" }}>Save</TextView>)}
-              </Pressable>}
-              <Pressable
-                style={{
-                  // backgroundColor: AppTheme.colors.neutral_30,
-                  paddingVertical: 12,
-                }}
-                onPress={() => handleClosePress()}
-              >
-                <TextView style={{ color:"#3b76c3", textAlign: "center", fontWeight: "500" }}>{cancelButtonText}</TextView>
-              </Pressable>
+                {isSaveButtonVisible && (
+                  <Pressable
+                    style={{
+                      backgroundColor: "#3b76c3",
+                      padding: 8,
+                      borderRadius: 24,
+                      paddingVertical: 12,
+                    }}
+                    onPress={() => {
+                      submit();
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size={18} color={"white"} />
+                    ) : (
+                      <TextView style={{ color: "white", textAlign: "center" }}>
+                        Save
+                      </TextView>
+                    )}
+                  </Pressable>
+                )}
+              </View>
             </View>
           </View>
-        </View>
+        </BottomSheetView>
       </BottomSheet>
-
-    </View>
+    </GestureHandlerRootView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#efefef",
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  itemContainer: {
+    backgroundColor: "white",
+    padding: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  itemContent: { flexDirection: "row", alignItems: "center" },
+  circle: {
+    width: 16,
+    height: 16,
+    borderColor: "grey",
+    borderWidth: 1,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  itemTitle: { fontWeight: "700", color: "#333333" },
+  progressContainer: { flexDirection: "row", alignItems: "center" },
+  progressText: { fontSize: 12, color: "grey", marginLeft: 4 },
+  durationText: { fontSize: 12, color: "grey" },
+});
 
 export default App;

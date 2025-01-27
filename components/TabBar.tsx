@@ -45,10 +45,10 @@ function TabBar({ state, descriptors, navigation }) {
             onLongPress={onLongPress}
             style={styles.tabbarItem}
           >
-            <View style={{ flex:1, borderRadius: 24, width: 23, height:23, alignItems:"center", justifyContent:"center", backgroundColor: isFocused ? '#4682B4' : 'transparent' }} >
+            <View style={{ flex:1, borderRadius: 24, width: 23, height:23, alignItems:"center", justifyContent:"center", backgroundColor: isFocused ? '#3b76c3' : 'transparent' }} >
               <Feather name='home' size={24} color={  isFocused ? 'white' : '#222' }/>
             </View>
-            {/* <Text style={{ color: isFocused ? '#4682B4' : '#222' }}>
+            {/* <Text style={{ color: isFocused ? '#3b76c3' : '#222' }}>
               {label}
             </Text> */}
           </TouchableOpacity>

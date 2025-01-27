@@ -74,10 +74,8 @@ export default StyleSheet.create({
     justifyContent: "center",
   },
   highlightTodayStyle: {
-    backgroundColor: "unset", // Example color to highlight today’s date
+    backgroundColor: "red", // Example color to highlight today’s date
     borderRadius: 50, // Rounded style for today
-    borderWidth: 1,
-    borderColor: "#fff",
   },
 
   visibleDot: {
